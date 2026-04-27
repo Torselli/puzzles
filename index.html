@@ -423,10 +423,8 @@ select.filter-sel {
     <option value="Montado">Montado</option>
     <option value="Emprestado">Emprestado</option>
     <option value="À venda">À venda</option>
-    <option value="Vendido">Vendido</option>
-    <option value="Trocado">Trocado</option>
+    <option value="Vendido/Trocado">Vendido/Trocado</option>
     <option value="Enquadrado">Enquadrado</option>
-    <option value="Doado">Doado</option>
   </select>
   <button class="btn-icon" onclick="exportJSON()">⬇ JSON</button>
   <button class="btn-icon" onclick="exportCSV()">⬇ CSV</button>
@@ -456,6 +454,11 @@ select.filter-sel {
       <input type="text" id="fNome" placeholder="ex: O Jardim Secreto">
     </div>
 
+    <div class="form-group">
+      <label>Número (formato XXXX-YY)</label>
+      <input type="text" id="fNumero" placeholder="ex: 0001-01" maxlength="7" oninput="formatNumero(this)">
+    </div>
+
     <div class="form-row">
       <div class="form-group">
         <label>Número de Peças</label>
@@ -478,29 +481,20 @@ select.filter-sel {
       </div>
       <div class="form-group">
         <label>Status Atual</label>
-        <select id="fStatus">
+        <select id="fStatus" onchange="toggleEmprestado()">
           <option value="Na coleção">Na coleção</option>
-          <option value="Montado">Montado (em exposição)</option>
+          <option value="Montado">Montado</option>
           <option value="Emprestado">Emprestado</option>
           <option value="À venda">À venda</option>
-          <option value="Vendido">Vendido</option>
-          <option value="Trocado">Trocado</option>
+          <option value="Vendido/Trocado">Vendido/Trocado</option>
           <option value="Enquadrado">Enquadrado</option>
-          <option value="Doado">Doado</option>
         </select>
       </div>
     </div>
 
-    <div class="form-row">
-      <div class="form-group">
-        <label>Ano de Compra</label>
-        <input type="number" id="fAno" placeholder="ex: 2023" min="1990" max="2035">
-      </div>
-      <div class="form-group">
-        <label>Preço Pago (R$)</label>
-        <input type="number" id="fPreco" placeholder="ex: 89.90" step="0.01" min="0">
-      </div>
-    </div>
+    <div class="form-group" id="groupEmprestado" style="display:none">
+      <label>Emprestado para</label>
+      <input type="text" id="fEmprestado" placeholder="ex: Maria Silva">
 
     <div class="form-group">
       <label>Observações</label>
@@ -598,14 +592,12 @@ let isSyncing   = false;
 
 // ── STATUS COLORS ──
 const statusColors = {
-  'Na coleção': { bg: '#e8e2f8', color: '#3d2a85' },
-  'Montado':    { bg: '#d4f0e0', color: '#1a6b3a' },
-  'Emprestado': { bg: '#fef3cd', color: '#7a5500' },
-  'À venda':    { bg: '#fce8d4', color: '#8a3a10' },
-  'Vendido':    { bg: '#f0e0e0', color: '#8a2020' },
-  'Trocado':    { bg: '#dde8f8', color: '#1a3a7a' },
-  'Enquadrado': { bg: '#e0f0f8', color: '#0a5070' },
-  'Doado':      { bg: '#f0e8f8', color: '#5a1a8a' },
+  'Na coleção':     { bg: '#e8e2f8', color: '#3d2a85' },
+  'Montado':        { bg: '#d4f0e0', color: '#1a6b3a' },
+  'Emprestado':     { bg: '#fef3cd', color: '#7a5500' },
+  'À venda':        { bg: '#fce8d4', color: '#8a3a10' },
+  'Vendido/Trocado':{ bg: '#f0e0e0', color: '#8a2020' },
+  'Enquadrado':     { bg: '#e0f0f8', color: '#0a5070' },
 };
 function getStatusStyle(s) {
   const c = statusColors[s] || { bg:'#eee', color:'#555' };
@@ -840,8 +832,8 @@ function renderGrid() {
         : `<div class="card-image-placeholder">🧩</div>`}
       <span class="status-badge" style="${getStatusStyle(p.status)}">${p.status||'Na coleção'}</span>
       <div class="card-body">
-        <div class="card-name">${escHtml(p.nome||'Sem nome')}</div>
-        <div class="card-meta">${escHtml(p.marca||'Marca não informada')}${p.ano?' · '+p.ano:''}</div>
+        <div class="card-name">${escHtml(p.nome||'Sem nome')}${p.numero?' <span style="font-size:11px;color:var(--text2);font-family:\'DM Sans\',sans-serif;font-weight:400">#'+escHtml(p.numero)+'</span>':''}</div>
+        <div class="card-meta">${escHtml(p.marca||'Marca não informada')}</div>
         <div class="card-tags">
           ${p.pecas?`<span class="tag tag-pieces">${parseInt(p.pecas).toLocaleString('pt-BR')} peças</span>`:''}
           <span class="tag ${p.montado==='Sim'?'tag-montado':'tag-nao-montado'}">${p.montado==='Sim'?'✓ Montado':'Não montado'}</span>
@@ -863,10 +855,11 @@ function escHtml(s) {
 function openAdd() {
   document.getElementById('formTitle').textContent = 'Novo quebra-cabeça';
   document.getElementById('editId').value = '';
-  ['fNome','fMarca','fAno','fPreco','fNotes'].forEach(id => document.getElementById(id).value = '');
+  ['fNome','fMarca','fNotes','fNumero','fEmprestado'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('fPecas').value  = '';
   document.getElementById('fMontado').value = 'Não';
   document.getElementById('fStatus').value  = 'Na coleção';
+  document.getElementById('groupEmprestado').style.display = 'none';
   photoData = null;
   resetPhotoPreview();
   document.getElementById('formOverlay').classList.add('open');
@@ -878,13 +871,14 @@ function editItem(id) {
   document.getElementById('formTitle').textContent = 'Editar quebra-cabeça';
   document.getElementById('editId').value  = id;
   document.getElementById('fNome').value   = p.nome  || '';
+  document.getElementById('fNumero').value = p.numero || '';
   document.getElementById('fPecas').value  = p.pecas || '';
   document.getElementById('fMarca').value  = p.marca || '';
   document.getElementById('fMontado').value = p.montado || 'Não';
   document.getElementById('fStatus').value  = p.status  || 'Na coleção';
-  document.getElementById('fAno').value    = p.ano   || '';
-  document.getElementById('fPreco').value  = p.preco || '';
+  document.getElementById('fEmprestado').value = p.emprestado || '';
   document.getElementById('fNotes').value  = p.notes || '';
+  document.getElementById('groupEmprestado').style.display = p.status === 'Emprestado' ? 'block' : 'none';
   photoData = p.photo || null;
   const pp = document.getElementById('photoPreview');
   if (p.photo) {
@@ -933,12 +927,12 @@ function saveItem() {
   const editId = document.getElementById('editId').value;
   const data = {
     nome,
+    numero:  document.getElementById('fNumero').value.trim(),
     pecas:   document.getElementById('fPecas').value  ? parseInt(document.getElementById('fPecas').value) : null,
     marca:   document.getElementById('fMarca').value.trim(),
     montado: document.getElementById('fMontado').value,
     status:  document.getElementById('fStatus').value,
-    ano:     document.getElementById('fAno').value    || null,
-    preco:   document.getElementById('fPreco').value  || null,
+    emprestado: document.getElementById('fStatus').value === 'Emprestado' ? document.getElementById('fEmprestado').value.trim() : '',
     notes:   document.getElementById('fNotes').value.trim(),
     photo:   photoData,
     updatedAt: new Date().toISOString(),
@@ -975,7 +969,7 @@ function showDetail(id) {
     </div>
     <div class="detail-body">
       <div class="detail-title">${escHtml(p.nome||'Sem nome')}</div>
-      <div class="detail-sub">${escHtml(p.marca||'Marca não informada')}${p.ano?' · '+p.ano:''}</div>
+      <div class="detail-sub">${p.numero?'<span style="font-size:12px;background:#e8e2f8;color:#3d2a85;padding:2px 8px;border-radius:6px;margin-right:6px">#'+escHtml(p.numero)+'</span>':''}${escHtml(p.marca||'Marca não informada')}</div>
       <div class="detail-grid">
         <div class="detail-field">
           <div class="detail-field-label">Peças</div>
@@ -989,10 +983,7 @@ function showDetail(id) {
           <div class="detail-field-label">Montado?</div>
           <div class="detail-field-val">${p.montado||'Não'}</div>
         </div>
-        <div class="detail-field">
-          <div class="detail-field-label">Preço pago</div>
-          <div class="detail-field-val">${p.preco?'R$ '+parseFloat(p.preco).toFixed(2):'—'}</div>
-        </div>
+        ${p.status==='Emprestado'&&p.emprestado?`<div class="detail-field" style="grid-column:1/-1"><div class="detail-field-label">Emprestado para</div><div class="detail-field-val">${escHtml(p.emprestado)}</div></div>`:''}
       </div>
       ${p.notes?`<div class="detail-notes">${escHtml(p.notes)}</div>`:''}
       <div class="detail-actions">
@@ -1024,7 +1015,7 @@ function exportJSON() {
 }
 
 function exportCSV() {
-  const headers = ['nome','pecas','marca','montado','status','ano','preco','notes','createdAt'];
+  const headers = ['numero','nome','pecas','marca','montado','status','emprestado','notes','createdAt'];
   const rows    = puzzles.map(p => headers.map(h => `"${(p[h]||'').toString().replace(/"/g,'""')}"`).join(','));
   const csv     = [headers.join(','), ...rows].join('\n');
   const blob    = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
@@ -1052,6 +1043,20 @@ function importData(event) {
   };
   reader.readAsText(file);
   event.target.value = '';
+}
+
+// ── NUMERO FORMAT ──
+function formatNumero(input) {
+  let v = input.value.replace(/[^0-9]/g, '');
+  if (v.length > 4) v = v.slice(0,4) + '-' + v.slice(4,6);
+  input.value = v;
+}
+
+// ── TOGGLE EMPRESTADO ──
+function toggleEmprestado() {
+  const status = document.getElementById('fStatus').value;
+  document.getElementById('groupEmprestado').style.display = status === 'Emprestado' ? 'block' : 'none';
+  if (status !== 'Emprestado') document.getElementById('fEmprestado').value = '';
 }
 
 // ── HELPERS ──
