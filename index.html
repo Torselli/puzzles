@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#2d1b69">
+<meta name="description" content="Minha Coleção de Quebra-Cabeças">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Quebra-Cabeças">
+<title>🧩 Minha Coleção</title>
+
+<!-- Google API -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+
+:root {
+  --bg: #f7f4ef;
+  --surface: #ffffff;
+  --surface2: #f0ece4;
+  --accent: #2d1b69;
+  --accent2: #7c5cbf;
+  --accent3: #e8824a;
+  --text: #1a1520;
+  --text2: #6b6178;
+  --border: rgba(45,27,105,0.12);
+  --radius: 14px;
+  --shadow: 0 2px 16px rgba(45,27,105,0.08);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+header {
+  background: var(--accent);
+  color: white;
+  padding: 16px 20px 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(20,10,50,0.25);
+}
+header h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  letter-spacing: 0.3px;
+  margin-bottom: 10px;
+}
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.header-stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.stat-pill {
+  background: rgba(255,255,255,0.15);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+}
+
+/* ── DRIVE STATUS ── */
+.drive-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.drive-status:hover { background: rgba(255,255,255,0.22); }
+.drive-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #aaa;
+  flex-shrink: 0;
+}
+.drive-dot.synced { background: #5de8a0; }
+.drive-dot.syncing { background: #f5c542; animation: pulse 1s infinite; }
+.drive-dot.error { background: #f57070; }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── TOOLBAR ── */
+.toolbar {
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.btn-add {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-add:hover { background: #3d2a85; }
+.btn-icon {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-icon:hover { background: #e8e2f8; color: var(--accent); border-color: var(--accent2); }
+.search-input {
+  flex: 1;
+  min-width: 140px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  transition: border 0.15s;
+}
+.search-input:focus { border-color: var(--accent2); }
+select.filter-sel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+}
+
+/* ── GRID ── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 18px 16px;
+}
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: transform 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+  position: relative;
+}
+.card:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(45,27,105,0.13); }
+.card-image-placeholder {
+  width: 100%;
+  height: 170px;
+  background: linear-gradient(135deg, #e8e2f8 0%, #f0ece4 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+}
+.card-image {
+  width: 100%;
+  height: 170px;
+  overflow: hidden;
+  position: relative;
+}
+.card-image img { width: 100%; height: 100%; object-fit: cover; }
+.status-badge {
+  position: absolute;
+  top: 10px; right: 10px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.card-body { padding: 14px 16px 16px; }
+.card-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-meta { font-size: 12px; color: var(--text2); margin-bottom: 10px; }
+.card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag { font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 500; }
+.tag-pieces { background: #e8e2f8; color: #3d2a85; }
+.tag-montado { background: #d4f0e0; color: #1a6b3a; }
+.tag-nao-montado { background: #fce8d4; color: #8a3a10; }
+.card-actions {
+  display: flex; gap: 6px;
+  margin-top: 12px; justify-content: flex-end;
+}
+.btn-small {
+  padding: 5px 10px; border-radius: 6px;
+  font-size: 11px; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg); color: var(--text2);
+  transition: all 0.12s;
+}
+.btn-small:hover { background: #e8e2f8; color: var(--accent); border-color: var(--accent2); }
+.btn-del:hover { background: #fce8e8; color: #c0392b; border-color: #f0a0a0; }
+
+.empty-state {
+  grid-column: 1/-1;
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text2);
+}
+.empty-state .big-emoji { font-size: 56px; margin-bottom: 12px; }
+
+/* ── OVERLAY / MODAL ── */
+.overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(20,10,50,0.55);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 24px;
+  max-width: 500px; width: 100%;
+  max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(20,10,50,0.3);
+}
+.modal h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px; margin-bottom: 20px;
+  color: var(--accent);
+}
+.form-group { margin-bottom: 14px; }
+.form-group label {
+  display: block; font-size: 12px; font-weight: 500;
+  color: var(--text2); margin-bottom: 5px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%; border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 12px;
+  font-size: 14px; font-family: 'DM Sans', sans-serif;
+  background: var(--bg); color: var(--text);
+  outline: none; transition: border 0.15s;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus { border-color: var(--accent2); background: #f9f8ff; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-actions {
+  display: flex; gap: 10px;
+  justify-content: flex-end; margin-top: 20px;
+}
+.btn-cancel {
+  padding: 10px 20px; border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg); color: var(--text2);
+  font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer;
+}
+.btn-save {
+  padding: 10px 22px; border-radius: 8px;
+  border: none; background: var(--accent); color: white;
+  font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.btn-save:hover { background: #3d2a85; }
+
+.photo-preview {
+  width: 100%; height: 130px;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  font-size: 12px; color: var(--text2);
+  cursor: pointer; background: var(--bg);
+  overflow: hidden; position: relative; gap: 6px;
+  transition: border-color 0.15s;
+}
+.photo-preview:hover { border-color: var(--accent2); }
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
+
+/* ── DETAIL MODAL ── */
+.view-detail-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(20,10,50,0.6);
+  z-index: 300;
+  align-items: center; justify-content: center;
+  padding: 16px;
+}
+.view-detail-overlay.open { display: flex; }
+.view-detail-modal {
+  background: var(--surface);
+  border-radius: 18px; max-width: 440px; width: 100%;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(20,10,50,0.35);
+  max-height: 90vh; overflow-y: auto;
+}
+.detail-image {
+  width: 100%; height: 220px;
+  background: var(--surface2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 56px; overflow: hidden;
+}
+.detail-image img { width: 100%; height: 100%; object-fit: cover; }
+.detail-body { padding: 20px 22px 22px; }
+.detail-title { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 4px; }
+.detail-sub { font-size: 13px; color: var(--text2); margin-bottom: 16px; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.detail-field { background: var(--bg); border-radius: 8px; padding: 10px 12px; }
+.detail-field-label { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 3px; }
+.detail-field-val { font-size: 14px; font-weight: 500; }
+.detail-notes { font-size: 13px; color: var(--text2); background: var(--bg); border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; }
+.detail-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ── DRIVE CONFIG MODAL ── */
+.drive-modal {
+  background: var(--surface);
+  border-radius: 18px; padding: 28px;
+  max-width: 440px; width: 100%;
+  box-shadow: 0 20px 60px rgba(20,10,50,0.3);
+}
+.drive-modal h2 { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--accent); margin-bottom: 6px; }
+.drive-modal p { font-size: 13px; color: var(--text2); margin-bottom: 20px; line-height: 1.6; }
+.step-box {
+  background: var(--bg); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 12px;
+  border-left: 3px solid var(--accent2);
+}
+.step-num { font-size: 11px; font-weight: 500; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.step-text { font-size: 13px; color: var(--text); line-height: 1.5; }
+.step-text code {
+  background: #e8e2f8; color: #3d2a85;
+  padding: 1px 5px; border-radius: 4px; font-size: 12px;
+}
+.setup-input-group { margin-top: 20px; margin-bottom: 8px; }
+.setup-input-group label { display: block; font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.setup-input-group input {
+  width: 100%; border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+  font-size: 13px; font-family: 'DM Sans', sans-serif;
+  background: var(--bg); color: var(--text); outline: none;
+}
+.setup-input-group input:focus { border-color: var(--accent2); }
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #1a1520; color: white;
+  padding: 10px 20px; border-radius: 20px;
+  font-size: 13px; z-index: 999;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+}
+.toast.show { opacity: 1; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 480px) {
+  header h1 { font-size: 17px; }
+  .grid { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
+  .form-row { grid-template-columns: 1fr; }
+  .detail-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-row">
+    <h1>🧩 Minha Coleção</h1>
+    <div class="drive-status" id="driveStatus" onclick="openDriveConfig()">
+      <div class="drive-dot" id="driveDot"></div>
+      <span id="driveLabel">Configurar Drive</span>
+    </div>
+  </div>
+  <div class="header-stats">
+    <span class="stat-pill" id="stat-total">0 quebra-cabeças</span>
+    <span class="stat-pill" id="stat-montados">0 montados</span>
+    <span class="stat-pill" id="stat-pecas">0 peças</span>
+  </div>
+</header>
+
+<div class="toolbar">
+  <button class="btn-add" onclick="openAdd()">＋ Adicionar</button>
+  <input class="search-input" type="text" placeholder="Buscar por nome, marca..." id="searchInput" oninput="renderGrid()">
+  <select class="filter-sel" id="filterStatus" onchange="renderGrid()">
+    <option value="">Todos os status</option>
+    <option value="Na coleção">Na coleção</option>
+    <option value="Montado">Montado</option>
+    <option value="Emprestado">Emprestado</option>
+    <option value="À venda">À venda</option>
+    <option value="Vendido">Vendido</option>
+    <option value="Trocado">Trocado</option>
+    <option value="Enquadrado">Enquadrado</option>
+    <option value="Doado">Doado</option>
+  </select>
+  <button class="btn-icon" onclick="exportJSON()">⬇ JSON</button>
+  <button class="btn-icon" onclick="exportCSV()">⬇ CSV</button>
+  <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+  <button class="btn-icon" onclick="document.getElementById('importFile').click()">⬆ Importar</button>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<!-- ── FORM MODAL ── -->
+<div class="overlay" id="formOverlay" onclick="closeIfOverlay(event,'formOverlay')">
+  <div class="modal">
+    <h2 id="formTitle">Novo quebra-cabeça</h2>
+    <input type="hidden" id="editId">
+
+    <div class="form-group">
+      <label>Foto</label>
+      <div class="photo-preview" id="photoPreview" onclick="document.getElementById('photoInput').click()">
+        <span style="font-size:22px">📷</span>
+        <span>Clique para adicionar foto</span>
+        <input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(event)" style="display:none">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Nome / Título *</label>
+      <input type="text" id="fNome" placeholder="ex: O Jardim Secreto">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Número de Peças</label>
+        <input type="number" id="fPecas" placeholder="ex: 1000" min="1">
+      </div>
+      <div class="form-group">
+        <label>Marca</label>
+        <input type="text" id="fMarca" placeholder="ex: Ravensburger">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Já foi montado?</label>
+        <select id="fMontado">
+          <option value="Não">Não</option>
+          <option value="Sim">Sim</option>
+          <option value="Parcialmente">Parcialmente</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Status Atual</label>
+        <select id="fStatus">
+          <option value="Na coleção">Na coleção</option>
+          <option value="Montado">Montado (em exposição)</option>
+          <option value="Emprestado">Emprestado</option>
+          <option value="À venda">À venda</option>
+          <option value="Vendido">Vendido</option>
+          <option value="Trocado">Trocado</option>
+          <option value="Enquadrado">Enquadrado</option>
+          <option value="Doado">Doado</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Ano de Compra</label>
+        <input type="number" id="fAno" placeholder="ex: 2023" min="1990" max="2035">
+      </div>
+      <div class="form-group">
+        <label>Preço Pago (R$)</label>
+        <input type="number" id="fPreco" placeholder="ex: 89.90" step="0.01" min="0">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Observações</label>
+      <textarea id="fNotes" rows="2" placeholder="peças faltando, condição, onde comprou..."></textarea>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal('formOverlay')">Cancelar</button>
+      <button class="btn-save" onclick="saveItem()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── DETAIL MODAL ── -->
+<div class="view-detail-overlay" id="detailOverlay" onclick="closeIfOverlay(event,'detailOverlay')">
+  <div class="view-detail-modal" id="detailContent"></div>
+</div>
+
+<!-- ── DRIVE CONFIG MODAL ── -->
+<div class="overlay" id="driveOverlay" onclick="closeIfOverlay(event,'driveOverlay')">
+  <div class="drive-modal">
+    <h2>☁️ Google Drive</h2>
+    <p>Seus dados são salvos automaticamente no Drive e sincronizados entre todos os seus dispositivos.</p>
+
+    <div id="driveSetupSteps">
+      <div class="step-box">
+        <div class="step-num">Passo 1</div>
+        <div class="step-text">Acesse <a href="https://console.cloud.google.com" target="_blank" style="color:var(--accent2)">console.cloud.google.com</a> → crie um projeto novo (ex: <code>minha-colecao</code>)</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">Passo 2</div>
+        <div class="step-text">Ative as APIs: <strong>Google Drive API</strong> e <strong>Google Picker API</strong><br>
+        Menu → APIs e Serviços → Biblioteca → buscar e ativar cada uma</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">Passo 3</div>
+        <div class="step-text">Crie credenciais: APIs e Serviços → Credenciais → Criar credenciais → <strong>ID do cliente OAuth 2.0</strong><br>
+        Tipo: <code>Aplicativo da Web</code> → adicione sua URL do GitHub Pages em "Origens JavaScript autorizadas"</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">Passo 4</div>
+        <div class="step-text">Também crie uma <strong>Chave de API</strong> (Credenciais → Criar credenciais → Chave de API)</div>
+      </div>
+
+      <div class="setup-input-group">
+        <label>Client ID (OAuth 2.0)</label>
+        <input type="text" id="inputClientId" placeholder="xxxxxxxxx.apps.googleusercontent.com">
+      </div>
+      <div class="setup-input-group">
+        <label>API Key</label>
+        <input type="text" id="inputApiKey" placeholder="AIzaSy...">
+      </div>
+    </div>
+
+    <div id="driveUserInfo" style="display:none; margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg);border-radius:10px;">
+        <div style="font-size:28px">👤</div>
+        <div>
+          <div style="font-size:14px;font-weight:500" id="driveUserName">–</div>
+          <div style="font-size:12px;color:var(--text2)" id="driveUserEmail">–</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions" style="margin-top:20px;">
+      <button class="btn-cancel" onclick="closeModal('driveOverlay')">Fechar</button>
+      <button class="btn-cancel" id="btnDriveLogout" onclick="driveLogout()" style="display:none; color:#c0392b;">Sair do Drive</button>
+      <button class="btn-save" id="btnDriveConnect" onclick="initDrive()">Conectar ao Drive</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  CONFIGURAÇÃO — preencha após criar no Google Console
+//  OU use a interface de configuração do app
+// ══════════════════════════════════════════
+let CLIENT_ID = localStorage.getItem('gdrive_client_id') || '';
+let API_KEY    = localStorage.getItem('gdrive_api_key')   || '';
+
+const SCOPES      = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file';
+const FILE_NAME   = 'puzzles_collection.json';
+const FOLDER_NAME = 'MinhaColeçãoPuzzles';
+
+// ── STATE ──
+let puzzles     = JSON.parse(localStorage.getItem('puzzles_collection') || '[]');
+let photoData   = null;
+let gapiReady   = false;
+let gisReady    = false;
+let tokenClient = null;
+let driveFileId = localStorage.getItem('gdrive_file_id') || null;
+let isSyncing   = false;
+
+// ── STATUS COLORS ──
+const statusColors = {
+  'Na coleção': { bg: '#e8e2f8', color: '#3d2a85' },
+  'Montado':    { bg: '#d4f0e0', color: '#1a6b3a' },
+  'Emprestado': { bg: '#fef3cd', color: '#7a5500' },
+  'À venda':    { bg: '#fce8d4', color: '#8a3a10' },
+  'Vendido':    { bg: '#f0e0e0', color: '#8a2020' },
+  'Trocado':    { bg: '#dde8f8', color: '#1a3a7a' },
+  'Enquadrado': { bg: '#e0f0f8', color: '#0a5070' },
+  'Doado':      { bg: '#f0e8f8', color: '#5a1a8a' },
+};
+function getStatusStyle(s) {
+  const c = statusColors[s] || { bg:'#eee', color:'#555' };
+  return `background:${c.bg};color:${c.color}`;
+}
+
+// ── TOAST ──
+function toast(msg, dur=2800) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+
+// ── DRIVE UI ──
+function setDriveStatus(state) {
+  const dot   = document.getElementById('driveDot');
+  const label = document.getElementById('driveLabel');
+  dot.className = 'drive-dot';
+  if (state === 'synced')  { dot.classList.add('synced');  label.textContent = 'Drive sincronizado'; }
+  else if (state === 'syncing') { dot.classList.add('syncing'); label.textContent = 'Sincronizando…'; }
+  else if (state === 'error')   { dot.classList.add('error');   label.textContent = 'Erro no Drive'; }
+  else { label.textContent = 'Configurar Drive'; }
+}
+
+// ── GAPI LOAD ──
+function loadGapiClient() {
+  if (!API_KEY || !CLIENT_ID) return;
+  gapi.load('client', async () => {
+    try {
+      await gapi.client.init({ apiKey: API_KEY, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+      gapiReady = true;
+      initTokenClient();
+    } catch(e) { console.warn('GAPI init error', e); }
+  });
+}
+
+function initTokenClient() {
+  if (!CLIENT_ID) return;
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: async (resp) => {
+      if (resp.error) { setDriveStatus('error'); toast('❌ Erro ao autenticar no Google'); return; }
+      gisReady = true;
+      closeModal('driveOverlay');
+      toast('✅ Conectado ao Google Drive!');
+      await syncFromDrive();
+      showDriveUser();
+    }
+  });
+  // auto-login silently if token exists
+  if (gapi.client.getToken()) {
+    gisReady = true;
+    showDriveUser();
+    syncFromDrive();
+  }
+}
+
+function showDriveUser() {
+  const token = gapi.client.getToken();
+  if (!token) return;
+  document.getElementById('driveSetupSteps').style.display = 'none';
+  document.getElementById('driveUserInfo').style.display = 'block';
+  document.getElementById('btnDriveLogout').style.display = 'inline-block';
+  document.getElementById('btnDriveConnect').style.display = 'none';
+  fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: 'Bearer ' + token.access_token }
+  }).then(r => r.json()).then(u => {
+    document.getElementById('driveUserName').textContent  = u.name  || '–';
+    document.getElementById('driveUserEmail').textContent = u.email || '–';
+  });
+}
+
+function initDrive() {
+  const cid = document.getElementById('inputClientId').value.trim();
+  const key = document.getElementById('inputApiKey').value.trim();
+  if (cid) { CLIENT_ID = cid; localStorage.setItem('gdrive_client_id', cid); }
+  if (key) { API_KEY   = key; localStorage.setItem('gdrive_api_key', key); }
+  if (!CLIENT_ID || !API_KEY) { toast('⚠️ Preencha o Client ID e a API Key'); return; }
+  if (!gapiReady) {
+    toast('Carregando API do Google…');
+    loadGapiClient();
+    setTimeout(initDrive, 1800);
+    return;
+  }
+  if (!tokenClient) initTokenClient();
+  tokenClient.requestAccessToken({ prompt: 'consent' });
+}
+
+function driveLogout() {
+  const token = gapi.client.getToken();
+  if (token) google.accounts.oauth2.revoke(token.access_token, () => {});
+  gapi.client.setToken(null);
+  gisReady = false;
+  driveFileId = null;
+  localStorage.removeItem('gdrive_file_id');
+  setDriveStatus('');
+  document.getElementById('driveSetupSteps').style.display = 'block';
+  document.getElementById('driveUserInfo').style.display = 'none';
+  document.getElementById('btnDriveLogout').style.display = 'none';
+  document.getElementById('btnDriveConnect').style.display = 'inline-block';
+  toast('Desconectado do Google Drive');
+  closeModal('driveOverlay');
+}
+
+// ── DRIVE SYNC ──
+async function findOrCreateFile() {
+  // check cached id
+  if (driveFileId) {
+    try {
+      await gapi.client.drive.files.get({ fileId: driveFileId, fields: 'id' });
+      return driveFileId;
+    } catch(e) { driveFileId = null; localStorage.removeItem('gdrive_file_id'); }
+  }
+  // search in appDataFolder
+  const res = await gapi.client.drive.files.list({
+    spaces: 'appDataFolder',
+    fields: 'files(id, name)',
+    q: `name='${FILE_NAME}'`
+  });
+  const files = res.result.files;
+  if (files && files.length > 0) {
+    driveFileId = files[0].id;
+    localStorage.setItem('gdrive_file_id', driveFileId);
+    return driveFileId;
+  }
+  // create new file
+  const meta = await gapi.client.drive.files.create({
+    resource: { name: FILE_NAME, parents: ['appDataFolder'] },
+    fields: 'id'
+  });
+  driveFileId = meta.result.id;
+  localStorage.setItem('gdrive_file_id', driveFileId);
+  return driveFileId;
+}
+
+async function syncFromDrive() {
+  if (!gapiReady || !gisReady) return;
+  setDriveStatus('syncing');
+  try {
+    const fid = await findOrCreateFile();
+    const res = await gapi.client.drive.files.get({ fileId: fid, alt: 'media' });
+    const remote = JSON.parse(res.body || '[]');
+    // merge: remote wins for existing ids, local additions kept
+    const remoteMap = {};
+    remote.forEach(p => remoteMap[p.id] = p);
+    const localMap  = {};
+    puzzles.forEach(p => localMap[p.id] = p);
+    const merged = { ...localMap, ...remoteMap };
+    puzzles = Object.values(merged).sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    localStorage.setItem('puzzles_collection', JSON.stringify(puzzles));
+    setDriveStatus('synced');
+    updateStats();
+    renderGrid();
+    toast('☁️ Dados sincronizados com o Drive');
+  } catch(e) {
+    if (e.status === 404) {
+      driveFileId = null;
+      localStorage.removeItem('gdrive_file_id');
+      await saveToDrive();
+    } else {
+      console.warn('Sync error', e);
+      setDriveStatus('error');
+    }
+  }
+}
+
+async function saveToDrive() {
+  if (!gapiReady || !gisReady) return;
+  if (isSyncing) return;
+  isSyncing = true;
+  setDriveStatus('syncing');
+  try {
+    const fid = await findOrCreateFile();
+    const content = JSON.stringify(puzzles, null, 2);
+    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fid}?uploadType=media`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': 'Bearer ' + gapi.client.getToken().access_token,
+        'Content-Type': 'application/json'
+      },
+      body: content
+    });
+    setDriveStatus('synced');
+  } catch(e) {
+    console.warn('Save error', e);
+    setDriveStatus('error');
+    toast('⚠️ Erro ao salvar no Drive');
+  }
+  isSyncing = false;
+}
+
+// ── LOCAL + DRIVE SAVE ──
+function saveAll() {
+  localStorage.setItem('puzzles_collection', JSON.stringify(puzzles));
+  updateStats();
+  renderGrid();
+  saveToDrive();
+}
+
+// ── STATS ──
+function updateStats() {
+  const total    = puzzles.length;
+  const montados = puzzles.filter(p => p.montado === 'Sim').length;
+  const pecas    = puzzles.reduce((a,p) => a + (parseInt(p.pecas)||0), 0);
+  document.getElementById('stat-total').textContent    = total + ' quebra-cabeças';
+  document.getElementById('stat-montados').textContent = montados + ' montados';
+  document.getElementById('stat-pecas').textContent    = pecas.toLocaleString('pt-BR') + ' peças';
+}
+
+// ── RENDER GRID ──
+function renderGrid() {
+  const q  = document.getElementById('searchInput').value.toLowerCase();
+  const sf = document.getElementById('filterStatus').value;
+  let list = puzzles.filter(p => {
+    const m  = !q || (p.nome||'').toLowerCase().includes(q) || (p.marca||'').toLowerCase().includes(q) || (p.notes||'').toLowerCase().includes(q);
+    const sm = !sf || p.status === sf;
+    return m && sm;
+  });
+
+  const grid = document.getElementById('grid');
+  if (list.length === 0) {
+    grid.innerHTML = `<div class="empty-state"><div class="big-emoji">🧩</div><p>Nenhum quebra-cabeça encontrado.<br>Que tal adicionar o primeiro?</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(p => `
+    <div class="card" onclick="showDetail('${p.id}')">
+      ${p.photo
+        ? `<div class="card-image"><img src="${p.photo}" loading="lazy"></div>`
+        : `<div class="card-image-placeholder">🧩</div>`}
+      <span class="status-badge" style="${getStatusStyle(p.status)}">${p.status||'Na coleção'}</span>
+      <div class="card-body">
+        <div class="card-name">${escHtml(p.nome||'Sem nome')}</div>
+        <div class="card-meta">${escHtml(p.marca||'Marca não informada')}${p.ano?' · '+p.ano:''}</div>
+        <div class="card-tags">
+          ${p.pecas?`<span class="tag tag-pieces">${parseInt(p.pecas).toLocaleString('pt-BR')} peças</span>`:''}
+          <span class="tag ${p.montado==='Sim'?'tag-montado':'tag-nao-montado'}">${p.montado==='Sim'?'✓ Montado':'Não montado'}</span>
+        </div>
+        <div class="card-actions">
+          <button class="btn-small" onclick="event.stopPropagation();editItem('${p.id}')">✏ Editar</button>
+          <button class="btn-small btn-del" onclick="event.stopPropagation();deleteItem('${p.id}')">✕ Excluir</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── ADD / EDIT ──
+function openAdd() {
+  document.getElementById('formTitle').textContent = 'Novo quebra-cabeça';
+  document.getElementById('editId').value = '';
+  ['fNome','fMarca','fAno','fPreco','fNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fPecas').value  = '';
+  document.getElementById('fMontado').value = 'Não';
+  document.getElementById('fStatus').value  = 'Na coleção';
+  photoData = null;
+  resetPhotoPreview();
+  document.getElementById('formOverlay').classList.add('open');
+}
+
+function editItem(id) {
+  const p = puzzles.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('formTitle').textContent = 'Editar quebra-cabeça';
+  document.getElementById('editId').value  = id;
+  document.getElementById('fNome').value   = p.nome  || '';
+  document.getElementById('fPecas').value  = p.pecas || '';
+  document.getElementById('fMarca').value  = p.marca || '';
+  document.getElementById('fMontado').value = p.montado || 'Não';
+  document.getElementById('fStatus').value  = p.status  || 'Na coleção';
+  document.getElementById('fAno').value    = p.ano   || '';
+  document.getElementById('fPreco').value  = p.preco || '';
+  document.getElementById('fNotes').value  = p.notes || '';
+  photoData = p.photo || null;
+  const pp = document.getElementById('photoPreview');
+  if (p.photo) {
+    pp.innerHTML = `<img src="${p.photo}"><input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(event)" style="display:none">`;
+  } else {
+    resetPhotoPreview();
+  }
+  document.getElementById('formOverlay').classList.add('open');
+}
+
+function resetPhotoPreview() {
+  document.getElementById('photoPreview').innerHTML =
+    `<span style="font-size:22px">📷</span><span>Clique para adicionar foto</span><input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(event)" style="display:none">`;
+}
+
+function handlePhoto(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  // resize to max 800px for storage efficiency
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = e => {
+    img.onload = () => {
+      const MAX = 800;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX/w); w = MAX; }
+        else       { w = Math.round(w * MAX/h); h = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      photoData = canvas.toDataURL('image/jpeg', 0.82);
+      const pp = document.getElementById('photoPreview');
+      pp.innerHTML = `<img src="${photoData}"><input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(event)" style="display:none">`;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveItem() {
+  const nome = document.getElementById('fNome').value.trim();
+  if (!nome) { toast('⚠️ Informe o nome do quebra-cabeça'); return; }
+
+  const editId = document.getElementById('editId').value;
+  const data = {
+    nome,
+    pecas:   document.getElementById('fPecas').value  ? parseInt(document.getElementById('fPecas').value) : null,
+    marca:   document.getElementById('fMarca').value.trim(),
+    montado: document.getElementById('fMontado').value,
+    status:  document.getElementById('fStatus').value,
+    ano:     document.getElementById('fAno').value    || null,
+    preco:   document.getElementById('fPreco').value  || null,
+    notes:   document.getElementById('fNotes').value.trim(),
+    photo:   photoData,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (editId) {
+    const idx = puzzles.findIndex(p => p.id === editId);
+    if (idx > -1) puzzles[idx] = { ...puzzles[idx], ...data };
+  } else {
+    data.id        = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    data.createdAt = new Date().toISOString();
+    puzzles.unshift(data);
+  }
+
+  saveAll();
+  closeModal('formOverlay');
+  toast(editId ? '✅ Quebra-cabeça atualizado' : '✅ Quebra-cabeça adicionado');
+}
+
+function deleteItem(id) {
+  if (!confirm('Tem certeza que deseja excluir este quebra-cabeça?')) return;
+  puzzles = puzzles.filter(p => p.id !== id);
+  saveAll();
+  toast('🗑 Excluído');
+}
+
+// ── DETAIL ──
+function showDetail(id) {
+  const p = puzzles.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('detailContent').innerHTML = `
+    <div class="detail-image">
+      ${p.photo ? `<img src="${p.photo}">` : '🧩'}
+    </div>
+    <div class="detail-body">
+      <div class="detail-title">${escHtml(p.nome||'Sem nome')}</div>
+      <div class="detail-sub">${escHtml(p.marca||'Marca não informada')}${p.ano?' · '+p.ano:''}</div>
+      <div class="detail-grid">
+        <div class="detail-field">
+          <div class="detail-field-label">Peças</div>
+          <div class="detail-field-val">${p.pecas?parseInt(p.pecas).toLocaleString('pt-BR'):'—'}</div>
+        </div>
+        <div class="detail-field">
+          <div class="detail-field-label">Status</div>
+          <div class="detail-field-val" style="color:${(statusColors[p.status]||{}).color||'#333'}">${p.status||'Na coleção'}</div>
+        </div>
+        <div class="detail-field">
+          <div class="detail-field-label">Montado?</div>
+          <div class="detail-field-val">${p.montado||'Não'}</div>
+        </div>
+        <div class="detail-field">
+          <div class="detail-field-label">Preço pago</div>
+          <div class="detail-field-val">${p.preco?'R$ '+parseFloat(p.preco).toFixed(2):'—'}</div>
+        </div>
+      </div>
+      ${p.notes?`<div class="detail-notes">${escHtml(p.notes)}</div>`:''}
+      <div class="detail-actions">
+        <button class="btn-cancel" onclick="closeModal('detailOverlay')">Fechar</button>
+        <button class="btn-save" onclick="closeModal('detailOverlay');editItem('${p.id}')">✏ Editar</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('detailOverlay').classList.add('open');
+}
+
+// ── DRIVE CONFIG MODAL ──
+function openDriveConfig() {
+  document.getElementById('inputClientId').value = CLIENT_ID;
+  document.getElementById('inputApiKey').value   = API_KEY;
+  if (gapiReady && gisReady) {
+    showDriveUser();
+  }
+  document.getElementById('driveOverlay').classList.add('open');
+}
+
+// ── EXPORT / IMPORT ──
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(puzzles, null, 2)], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'minha-colecao-quebracabecas.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportCSV() {
+  const headers = ['nome','pecas','marca','montado','status','ano','preco','notes','createdAt'];
+  const rows    = puzzles.map(p => headers.map(h => `"${(p[h]||'').toString().replace(/"/g,'""')}"`).join(','));
+  const csv     = [headers.join(','), ...rows].join('\n');
+  const blob    = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const url     = URL.createObjectURL(blob);
+  const a       = document.createElement('a');
+  a.href = url; a.download = 'minha-colecao-quebracabecas.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) throw new Error('Formato inválido');
+      if (confirm(`Importar ${data.length} quebra-cabeças? Itens com IDs novos serão adicionados.`)) {
+        const existingIds = new Set(puzzles.map(p => p.id));
+        data.forEach(p => { if (!existingIds.has(p.id)) puzzles.push(p); });
+        saveAll();
+        toast(`✅ ${data.length} itens importados`);
+      }
+    } catch { toast('❌ Arquivo JSON inválido'); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ── HELPERS ──
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeIfOverlay(e, id) { if (e.target.id === id) closeModal(id); }
+
+// ── INIT ──
+window.gapiLoaded = () => { loadGapiClient(); };
+window.gisLoaded  = () => {};
+
+updateStats();
+renderGrid();
+
+// auto-load gapi if credentials saved
+if (CLIENT_ID && API_KEY) {
+  window.addEventListener('load', () => {
+    if (typeof gapi !== 'undefined') loadGapiClient();
+    else setTimeout(() => { if (typeof gapi !== 'undefined') loadGapiClient(); }, 2000);
+  });
+}
+</script>
+</body>
+</html>
