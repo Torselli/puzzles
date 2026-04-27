@@ -455,8 +455,8 @@ select.filter-sel {
     </div>
 
     <div class="form-group">
-      <label>Número (formato XXXX-YY)</label>
-      <input type="text" id="fNumero" placeholder="ex: 0001-01" maxlength="7" oninput="formatNumero(this)">
+      <label>Número (formato XXXX-YY ou XXXX-YYY)</label>
+      <input type="text" id="fNumero" placeholder="ex: 0001-01 ou 0001-001" maxlength="8" oninput="formatNumero(this)">
     </div>
 
     <div class="form-row">
@@ -495,6 +495,7 @@ select.filter-sel {
     <div class="form-group" id="groupEmprestado" style="display:none">
       <label>Emprestado para</label>
       <input type="text" id="fEmprestado" placeholder="ex: Maria Silva">
+    </div>
 
     <div class="form-group">
       <label>Observações</label>
@@ -1048,7 +1049,7 @@ function importData(event) {
 // ── NUMERO FORMAT ──
 function formatNumero(input) {
   let v = input.value.replace(/[^0-9]/g, '');
-  if (v.length > 4) v = v.slice(0,4) + '-' + v.slice(4,6);
+  if (v.length > 4) v = v.slice(0,4) + '-' + v.slice(4,7);
   input.value = v;
 }
 
