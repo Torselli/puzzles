@@ -1238,9 +1238,22 @@ function showDetail(id) {
 function openDriveConfig() {
   document.getElementById('inputClientId').value = CLIENT_ID;
   document.getElementById('inputApiKey').value   = API_KEY;
-  if (gapiReady && gisReady) {
+
+  if (gapiReady && gisReady && gapi.client.getToken()) {
+    // connected — show user info, hide setup steps
+    document.getElementById('driveSetupSteps').style.display = 'none';
+    document.getElementById('driveUserInfo').style.display   = 'block';
+    document.getElementById('btnDriveLogout').style.display  = 'inline-block';
+    document.getElementById('btnDriveConnect').style.display = 'none';
     showDriveUser();
+  } else {
+    // not connected — show setup steps and connect button
+    document.getElementById('driveSetupSteps').style.display = 'block';
+    document.getElementById('driveUserInfo').style.display   = 'none';
+    document.getElementById('btnDriveLogout').style.display  = 'none';
+    document.getElementById('btnDriveConnect').style.display = 'inline-block';
   }
+
   document.getElementById('driveOverlay').classList.add('open');
 }
 
