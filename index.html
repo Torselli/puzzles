@@ -593,6 +593,7 @@ let tokenClient   = null;
 let driveFileId   = localStorage.getItem('gdrive_file_id')        || null;
 let photoFolderId = localStorage.getItem('gdrive_photo_folder_id') || null;
 let isSyncing     = false;
+let photoCache    = {}; // fileId → base64, cache em memória para mobile
 
 // ── STATUS COLORS ──
 const statusColors = {
@@ -897,7 +898,52 @@ function updateStats() {
   document.getElementById('stat-pecas').textContent    = pecas.toLocaleString('pt-BR') + ' peças';
 }
 
-// ── RENDER GRID ──
+// ── PHOTO FETCH (mobile-safe) ──
+// Busca a foto via API com token OAuth e converte para base64
+// para garantir exibição em mobile sem problemas de CORS/cookies
+async function fetchPhotoSrc(p) {
+  // prefer local base64 (always works)
+  if (p.photoLocal) return p.photoLocal;
+  if (!p.photo || !p.photoId) return null;
+
+  // check memory cache first
+  if (photoCache[p.photoId]) return photoCache[p.photoId];
+
+  // if Drive not ready, return the URL and hope for the best (desktop)
+  if (!gapiReady || !gisReady) return p.photo;
+
+  try {
+    const token = gapi.client.getToken();
+    if (!token) return p.photo;
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${p.photoId}?alt=media`,
+      { headers: { Authorization: 'Bearer ' + token.access_token } }
+    );
+    if (!res.ok) return p.photo;
+    const blob = await res.blob();
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        photoCache[p.photoId] = e.target.result;
+        resolve(e.target.result);
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch(e) {
+    return p.photo;
+  }
+}
+
+// Renders an <img> into a card or detail element after fetching
+async function loadCardPhoto(puzzleId, elementId) {
+  const p = puzzles.find(x => x.id === puzzleId);
+  if (!p) return;
+  const src = await fetchPhotoSrc(p);
+  const el  = document.getElementById(elementId);
+  if (el && src) el.src = src;
+}
+
+
 function renderGrid() {
   const q  = document.getElementById('searchInput').value.toLowerCase();
   const sf = document.getElementById('filterStatus').value;
@@ -916,7 +962,7 @@ function renderGrid() {
   grid.innerHTML = list.map(p => `
     <div class="card" onclick="showDetail('${p.id}')">
       ${(p.photo||p.photoLocal)
-        ? `<div class="card-image"><img src="${p.photo||p.photoLocal}" loading="lazy"></div>`
+        ? `<div class="card-image"><img id="img-${p.id}" src="${p.photoLocal||''}" loading="lazy" onerror="this.style.opacity=0"></div>`
         : `<div class="card-image-placeholder">🧩</div>`}
       <span class="status-badge" style="${getStatusStyle(p.status)}">${p.status||'Na coleção'}</span>
       <div class="card-body">
@@ -933,6 +979,16 @@ function renderGrid() {
       </div>
     </div>
   `).join('');
+
+  // load photos asynchronously (safe for mobile)
+  list.forEach(p => {
+    if ((p.photo || p.photoLocal) && p.photoId) {
+      loadCardPhoto(p.id, `img-${p.id}`);
+    } else if (p.photoLocal) {
+      const el = document.getElementById(`img-${p.id}`);
+      if (el) el.src = p.photoLocal;
+    }
+  });
 }
 
 function escHtml(s) {
@@ -971,9 +1027,14 @@ function editItem(id) {
   photoData = null;
   photoFile = null;
   const pp = document.getElementById('photoPreview');
-  const displaySrc = p.photo || p.photoLocal || null;
-  if (displaySrc) {
-    pp.innerHTML = `<img src="${displaySrc}"><input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(event)" style="display:none">`;
+  const displaySrc = p.photoLocal || null;
+  if (p.photo || p.photoLocal) {
+    pp.innerHTML = `<img id="edit-preview-img" src="${displaySrc||''}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0"><input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(event)" style="display:none">`;
+    // load full photo async
+    fetchPhotoSrc(p).then(src => {
+      const el = document.getElementById('edit-preview-img');
+      if (el && src) el.src = src;
+    });
   } else {
     resetPhotoPreview();
   }
@@ -1085,7 +1146,7 @@ function showDetail(id) {
   if (!p) return;
   document.getElementById('detailContent').innerHTML = `
     <div class="detail-image">
-      ${(p.photo||p.photoLocal) ? `<img src="${p.photo||p.photoLocal}">` : '🧩'}
+      ${(p.photo||p.photoLocal) ? `<img id="detail-img-${p.id}" src="${p.photoLocal||''}" style="width:100%;height:100%;object-fit:cover">` : '🧩'}
     </div>
     <div class="detail-body">
       <div class="detail-title">${escHtml(p.nome||'Sem nome')}</div>
@@ -1113,6 +1174,14 @@ function showDetail(id) {
     </div>
   `;
   document.getElementById('detailOverlay').classList.add('open');
+
+  // load photo async after modal is shown
+  if (p.photo || p.photoLocal) {
+    fetchPhotoSrc(p).then(src => {
+      const el = document.getElementById(`detail-img-${p.id}`);
+      if (el && src) el.src = src;
+    });
+  }
 }
 
 // ── DRIVE CONFIG MODAL ──
