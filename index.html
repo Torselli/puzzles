@@ -581,15 +581,18 @@ let API_KEY    = localStorage.getItem('gdrive_api_key')   || '';
 const SCOPES      = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file';
 const FILE_NAME   = 'puzzles_collection.json';
 const FOLDER_NAME = 'MinhaColeçãoPuzzles';
+const PHOTOS_FOLDER_NAME = 'fotos';
 
 // ── STATE ──
-let puzzles     = JSON.parse(localStorage.getItem('puzzles_collection') || '[]');
-let photoData   = null;
-let gapiReady   = false;
-let gisReady    = false;
-let tokenClient = null;
-let driveFileId = localStorage.getItem('gdrive_file_id') || null;
-let isSyncing   = false;
+let puzzles       = JSON.parse(localStorage.getItem('puzzles_collection') || '[]');
+let photoData     = null; // base64 preview (temporário, só para exibição no form)
+let photoFile     = null; // File object para upload no Drive
+let gapiReady     = false;
+let gisReady      = false;
+let tokenClient   = null;
+let driveFileId   = localStorage.getItem('gdrive_file_id')        || null;
+let photoFolderId = localStorage.getItem('gdrive_photo_folder_id') || null;
+let isSyncing     = false;
 
 // ── STATUS COLORS ──
 const statusColors = {
@@ -695,7 +698,9 @@ function driveLogout() {
   gapi.client.setToken(null);
   gisReady = false;
   driveFileId = null;
+  photoFolderId = null;
   localStorage.removeItem('gdrive_file_id');
+  localStorage.removeItem('gdrive_photo_folder_id');
   setDriveStatus('');
   document.getElementById('driveSetupSteps').style.display = 'block';
   document.getElementById('driveUserInfo').style.display = 'none';
@@ -707,14 +712,12 @@ function driveLogout() {
 
 // ── DRIVE SYNC ──
 async function findOrCreateFile() {
-  // check cached id
   if (driveFileId) {
     try {
       await gapi.client.drive.files.get({ fileId: driveFileId, fields: 'id' });
       return driveFileId;
     } catch(e) { driveFileId = null; localStorage.removeItem('gdrive_file_id'); }
   }
-  // search in appDataFolder
   const res = await gapi.client.drive.files.list({
     spaces: 'appDataFolder',
     fields: 'files(id, name)',
@@ -726,7 +729,6 @@ async function findOrCreateFile() {
     localStorage.setItem('gdrive_file_id', driveFileId);
     return driveFileId;
   }
-  // create new file
   const meta = await gapi.client.drive.files.create({
     resource: { name: FILE_NAME, parents: ['appDataFolder'] },
     fields: 'id'
@@ -734,6 +736,76 @@ async function findOrCreateFile() {
   driveFileId = meta.result.id;
   localStorage.setItem('gdrive_file_id', driveFileId);
   return driveFileId;
+}
+
+async function findOrCreatePhotoFolder() {
+  if (photoFolderId) {
+    try {
+      await gapi.client.drive.files.get({ fileId: photoFolderId, fields: 'id' });
+      return photoFolderId;
+    } catch(e) { photoFolderId = null; localStorage.removeItem('gdrive_photo_folder_id'); }
+  }
+  // search existing folder
+  const res = await gapi.client.drive.files.list({
+    fields: 'files(id, name)',
+    q: `name='${PHOTOS_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`
+  });
+  if (res.result.files && res.result.files.length > 0) {
+    photoFolderId = res.result.files[0].id;
+    localStorage.setItem('gdrive_photo_folder_id', photoFolderId);
+    return photoFolderId;
+  }
+  // create folder
+  const folder = await gapi.client.drive.files.create({
+    resource: { name: PHOTOS_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' },
+    fields: 'id'
+  });
+  photoFolderId = folder.result.id;
+  localStorage.setItem('gdrive_photo_folder_id', photoFolderId);
+  return photoFolderId;
+}
+
+async function uploadPhotoToDrive(file, puzzleId) {
+  const folderId = await findOrCreatePhotoFolder();
+  const token    = gapi.client.getToken().access_token;
+  const ext      = file.name.split('.').pop() || 'jpg';
+  const fileName = `puzzle_${puzzleId}.${ext}`;
+
+  // delete old photo if exists
+  const existing = await gapi.client.drive.files.list({
+    q: `name='${fileName}' and '${folderId}' in parents and trashed=false`,
+    fields: 'files(id)'
+  });
+  if (existing.result.files && existing.result.files.length > 0) {
+    for (const f of existing.result.files) {
+      await gapi.client.drive.files.delete({ fileId: f.id });
+    }
+  }
+
+  // upload new photo
+  const metadata = { name: fileName, parents: [folderId] };
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('file', file);
+
+  const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webContentLink,thumbnailLink', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token },
+    body: form
+  });
+  const uploaded = await uploadRes.json();
+
+  // make file publicly readable so img src works
+  await fetch(`https://www.googleapis.com/drive/v3/files/${uploaded.id}/permissions`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' })
+  });
+
+  return {
+    driveFileId: uploaded.id,
+    url: `https://drive.google.com/thumbnail?id=${uploaded.id}&sz=w800`
+  };
 }
 
 async function syncFromDrive() {
@@ -828,8 +900,8 @@ function renderGrid() {
 
   grid.innerHTML = list.map(p => `
     <div class="card" onclick="showDetail('${p.id}')">
-      ${p.photo
-        ? `<div class="card-image"><img src="${p.photo}" loading="lazy"></div>`
+      ${(p.photo||p.photoLocal)
+        ? `<div class="card-image"><img src="${p.photo||p.photoLocal}" loading="lazy"></div>`
         : `<div class="card-image-placeholder">🧩</div>`}
       <span class="status-badge" style="${getStatusStyle(p.status)}">${p.status||'Na coleção'}</span>
       <div class="card-body">
@@ -862,6 +934,7 @@ function openAdd() {
   document.getElementById('fStatus').value  = 'Na coleção';
   document.getElementById('groupEmprestado').style.display = 'none';
   photoData = null;
+  photoFile = null;
   resetPhotoPreview();
   document.getElementById('formOverlay').classList.add('open');
 }
@@ -880,10 +953,12 @@ function editItem(id) {
   document.getElementById('fEmprestado').value = p.emprestado || '';
   document.getElementById('fNotes').value  = p.notes || '';
   document.getElementById('groupEmprestado').style.display = p.status === 'Emprestado' ? 'block' : 'none';
-  photoData = p.photo || null;
+  photoData = null;
+  photoFile = null;
   const pp = document.getElementById('photoPreview');
-  if (p.photo) {
-    pp.innerHTML = `<img src="${p.photo}"><input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(event)" style="display:none">`;
+  const displaySrc = p.photo || p.photoLocal || null;
+  if (displaySrc) {
+    pp.innerHTML = `<img src="${displaySrc}"><input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(event)" style="display:none">`;
   } else {
     resetPhotoPreview();
   }
@@ -898,7 +973,7 @@ function resetPhotoPreview() {
 function handlePhoto(event) {
   const file = event.target.files[0];
   if (!file) return;
-  // resize to max 800px for storage efficiency
+  photoFile = file; // keep for Drive upload
   const img = new Image();
   const reader = new FileReader();
   reader.onload = e => {
@@ -912,7 +987,7 @@ function handlePhoto(event) {
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      photoData = canvas.toDataURL('image/jpeg', 0.82);
+      photoData = canvas.toDataURL('image/jpeg', 0.82); // preview only
       const pp = document.getElementById('photoPreview');
       pp.innerHTML = `<img src="${photoData}"><input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(event)" style="display:none">`;
     };
@@ -921,33 +996,62 @@ function handlePhoto(event) {
   reader.readAsDataURL(file);
 }
 
-function saveItem() {
+async function saveItem() {
   const nome = document.getElementById('fNome').value.trim();
   if (!nome) { toast('⚠️ Informe o nome do quebra-cabeça'); return; }
 
   const editId = document.getElementById('editId').value;
+  const itemId = editId || (Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+
+  // build data object (preserve existing photo info by default)
+  const existing = editId ? (puzzles.find(p => p.id === editId) || {}) : {};
   const data = {
     nome,
-    numero:  document.getElementById('fNumero').value.trim(),
-    pecas:   document.getElementById('fPecas').value  ? parseInt(document.getElementById('fPecas').value) : null,
-    marca:   document.getElementById('fMarca').value.trim(),
-    montado: document.getElementById('fMontado').value,
-    status:  document.getElementById('fStatus').value,
+    numero:     document.getElementById('fNumero').value.trim(),
+    pecas:      document.getElementById('fPecas').value ? parseInt(document.getElementById('fPecas').value) : null,
+    marca:      document.getElementById('fMarca').value.trim(),
+    montado:    document.getElementById('fMontado').value,
+    status:     document.getElementById('fStatus').value,
     emprestado: document.getElementById('fStatus').value === 'Emprestado' ? document.getElementById('fEmprestado').value.trim() : '',
-    notes:   document.getElementById('fNotes').value.trim(),
-    photo:   photoData,
-    updatedAt: new Date().toISOString(),
+    notes:      document.getElementById('fNotes').value.trim(),
+    photo:      existing.photo     || null, // Drive URL
+    photoId:    existing.photoId   || null, // Drive file ID
+    photoLocal: existing.photoLocal|| null, // base64 fallback
+    updatedAt:  new Date().toISOString(),
   };
+
+  // upload new photo if selected
+  if (photoFile) {
+    if (gapiReady && gisReady) {
+      toast('📤 Enviando foto para o Drive…');
+      try {
+        const result = await uploadPhotoToDrive(photoFile, itemId);
+        data.photo      = result.url;
+        data.photoId    = result.driveFileId;
+        data.photoLocal = null; // clear local fallback
+      } catch(e) {
+        console.warn('Photo upload failed, using local fallback', e);
+        data.photo      = null;
+        data.photoLocal = photoData; // store base64 as fallback
+        toast('⚠️ Falha no upload da foto — salva localmente');
+      }
+    } else {
+      // Drive not connected: store base64 locally as fallback
+      data.photo      = null;
+      data.photoLocal = photoData;
+    }
+  }
 
   if (editId) {
     const idx = puzzles.findIndex(p => p.id === editId);
-    if (idx > -1) puzzles[idx] = { ...puzzles[idx], ...data };
+    if (idx > -1) puzzles[idx] = { ...existing, ...data };
   } else {
-    data.id        = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    data.id        = itemId;
     data.createdAt = new Date().toISOString();
     puzzles.unshift(data);
   }
 
+  photoFile = null;
   saveAll();
   closeModal('formOverlay');
   toast(editId ? '✅ Quebra-cabeça atualizado' : '✅ Quebra-cabeça adicionado');
@@ -966,7 +1070,7 @@ function showDetail(id) {
   if (!p) return;
   document.getElementById('detailContent').innerHTML = `
     <div class="detail-image">
-      ${p.photo ? `<img src="${p.photo}">` : '🧩'}
+      ${(p.photo||p.photoLocal) ? `<img src="${p.photo||p.photoLocal}">` : '🧩'}
     </div>
     <div class="detail-body">
       <div class="detail-title">${escHtml(p.nome||'Sem nome')}</div>
