@@ -645,19 +645,29 @@ function initTokenClient() {
     client_id: CLIENT_ID,
     scope: SCOPES,
     callback: async (resp) => {
-      if (resp.error) { setDriveStatus('error'); toast('❌ Erro ao autenticar no Google'); return; }
+      if (resp.error) {
+        // silent reconnect failed — don't show error, just stay disconnected
+        if (resp.error === 'interaction_required' || resp.error === 'access_denied') {
+          setDriveStatus('');
+          return;
+        }
+        setDriveStatus('error');
+        toast('❌ Erro ao autenticar no Google');
+        return;
+      }
       gisReady = true;
       closeModal('driveOverlay');
-      toast('✅ Conectado ao Google Drive!');
       await syncFromDrive();
       showDriveUser();
     }
   });
-  // auto-login silently if token exists
-  if (gapi.client.getToken()) {
-    gisReady = true;
-    showDriveUser();
-    syncFromDrive();
+
+  // try silent reconnect if user was previously connected
+  const savedEmail = localStorage.getItem('gdrive_user_email');
+  if (savedEmail) {
+    try {
+      tokenClient.requestAccessToken({ prompt: '', login_hint: savedEmail });
+    } catch(e) { console.warn('Silent reconnect failed', e); }
   }
 }
 
@@ -673,6 +683,8 @@ function showDriveUser() {
   }).then(r => r.json()).then(u => {
     document.getElementById('driveUserName').textContent  = u.name  || '–';
     document.getElementById('driveUserEmail').textContent = u.email || '–';
+    // save email so we can reconnect silently next time
+    if (u.email) localStorage.setItem('gdrive_user_email', u.email);
   });
 }
 
@@ -689,7 +701,7 @@ function initDrive() {
     return;
   }
   if (!tokenClient) initTokenClient();
-  tokenClient.requestAccessToken({ prompt: 'consent' });
+  tokenClient.requestAccessToken({ prompt: 'select_account' });
 }
 
 function driveLogout() {
@@ -701,6 +713,7 @@ function driveLogout() {
   photoFolderId = null;
   localStorage.removeItem('gdrive_file_id');
   localStorage.removeItem('gdrive_photo_folder_id');
+  localStorage.removeItem('gdrive_user_email');
   setDriveStatus('');
   document.getElementById('driveSetupSteps').style.display = 'block';
   document.getElementById('driveUserInfo').style.display = 'none';
@@ -815,18 +828,20 @@ async function syncFromDrive() {
     const fid = await findOrCreateFile();
     const res = await gapi.client.drive.files.get({ fileId: fid, alt: 'media' });
     const remote = JSON.parse(res.body || '[]');
-    // merge: remote wins for existing ids, local additions kept
-    const remoteMap = {};
-    remote.forEach(p => remoteMap[p.id] = p);
-    const localMap  = {};
-    puzzles.forEach(p => localMap[p.id] = p);
-    const merged = { ...localMap, ...remoteMap };
-    puzzles = Object.values(merged).sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+
+    if (remote.length > 0) {
+      // Drive é a fonte da verdade — substitui local completamente
+      puzzles = remote;
+    } else {
+      // Drive vazio mas temos dados locais — envia o local para o Drive
+      await saveToDrive();
+    }
+
     localStorage.setItem('puzzles_collection', JSON.stringify(puzzles));
     setDriveStatus('synced');
     updateStats();
     renderGrid();
-    toast('☁️ Dados sincronizados com o Drive');
+    toast('☁️ Sincronizado com o Drive');
   } catch(e) {
     if (e.status === 404) {
       driveFileId = null;
