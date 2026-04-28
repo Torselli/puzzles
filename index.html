@@ -428,8 +428,8 @@ select.filter-sel {
   </select>
   <button class="btn-icon" onclick="exportJSON()">⬇ JSON</button>
   <button class="btn-icon" onclick="exportCSV()">⬇ CSV</button>
-  <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
-  <button class="btn-icon" onclick="document.getElementById('importFile').click()">⬆ Importar</button>
+  <input type="file" id="importFile" accept=".json,.csv" style="display:none" onchange="importData(event)">
+  <button class="btn-icon" onclick="document.getElementById('importFile').click()">⬆ Importar JSON/CSV</button>
 </div>
 
 <div class="grid" id="grid"></div>
@@ -1031,19 +1031,111 @@ function importData(event) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    try {
-      const data = JSON.parse(e.target.result);
-      if (!Array.isArray(data)) throw new Error('Formato inválido');
-      if (confirm(`Importar ${data.length} quebra-cabeças? Itens com IDs novos serão adicionados.`)) {
-        const existingIds = new Set(puzzles.map(p => p.id));
-        data.forEach(p => { if (!existingIds.has(p.id)) puzzles.push(p); });
-        saveAll();
-        toast(`✅ ${data.length} itens importados`);
-      }
-    } catch { toast('❌ Arquivo JSON inválido'); }
+    const content = e.target.result;
+    if (file.name.toLowerCase().endsWith('.csv')) {
+      importCSV(content);
+    } else {
+      importJSON(content);
+    }
   };
-  reader.readAsText(file);
+  reader.readAsText(file, 'UTF-8');
   event.target.value = '';
+}
+
+function importJSON(content) {
+  try {
+    const data = JSON.parse(content);
+    if (!Array.isArray(data)) throw new Error('Formato inválido');
+    if (confirm(`Importar ${data.length} quebra-cabeças do JSON? Itens com IDs novos serão adicionados.`)) {
+      const existingIds = new Set(puzzles.map(p => p.id));
+      data.forEach(p => { if (!existingIds.has(p.id)) puzzles.push(p); });
+      saveAll();
+      toast(`✅ ${data.length} itens importados`);
+    }
+  } catch { toast('❌ Arquivo JSON inválido'); }
+}
+
+function importCSV(content) {
+  try {
+    const clean = content.replace(/^\uFEFF/, '');
+    const lines = clean.split(/\r?\n/).filter(l => l.trim() !== '');
+    if (lines.length < 2) { toast('❌ CSV vazio ou sem dados'); return; }
+
+    const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+    if (!headers.includes('nome')) { toast('❌ Coluna obrigatória ausente: "nome"'); return; }
+
+    const validStatus  = ['Na coleção','Montado','Emprestado','À venda','Vendido/Trocado','Enquadrado'];
+    const validMontado = ['Sim','Não','Parcialmente'];
+    const imported = [];
+    const erros = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const vals = parseCSVLine(lines[i]);
+      if (vals.every(v => v.trim() === '')) continue;
+
+      const row = {};
+      headers.forEach((h, idx) => { row[h] = (vals[idx] || '').trim(); });
+
+      const nome = row['nome'] || '';
+      if (!nome) { erros.push(`Linha ${i+1}: nome vazio, ignorada`); continue; }
+
+      let status = row['status'] || 'Na coleção';
+      if (!validStatus.includes(status)) {
+        erros.push(`Linha ${i+1} ("${nome}"): status "${status}" inválido → definido como "Na coleção"`);
+        status = 'Na coleção';
+      }
+
+      let montado = row['montado'] || 'Não';
+      if (!validMontado.includes(montado)) montado = 'Não';
+
+      imported.push({
+        id:         Date.now().toString(36) + Math.random().toString(36).slice(2,6) + i,
+        numero:     row['numero']     || '',
+        nome,
+        pecas:      row['pecas'] ? (parseInt(row['pecas']) || null) : null,
+        marca:      row['marca']      || '',
+        montado,
+        status,
+        emprestado: status === 'Emprestado' ? (row['emprestado'] || '') : '',
+        notes:      row['notes'] || row['observacoes'] || row['observações'] || '',
+        photo:      null,
+        createdAt:  new Date().toISOString(),
+        updatedAt:  new Date().toISOString(),
+      });
+    }
+
+    if (imported.length === 0) { toast('❌ Nenhum item válido encontrado no CSV'); return; }
+
+    let msg = `Importar ${imported.length} quebra-cabeças do CSV?`;
+    if (erros.length > 0) msg += `\n\nAvisos:\n${erros.join('\n')}`;
+    if (confirm(msg)) {
+      puzzles.unshift(...imported.reverse());
+      saveAll();
+      toast(`✅ ${imported.length} itens importados do CSV`);
+    }
+  } catch(err) {
+    console.error(err);
+    toast('❌ Erro ao processar CSV. Verifique o formato.');
+  }
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i+1] === '"') { cur += '"'; i++; }
+      else { inQuotes = !inQuotes; }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(cur); cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur);
+  return result;
 }
 
 // ── NUMERO FORMAT ──
