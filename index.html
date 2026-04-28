@@ -818,7 +818,7 @@ function renderGrid() {
     const m  = !q || (p.nome||'').toLowerCase().includes(q) || (p.marca||'').toLowerCase().includes(q) || (p.notes||'').toLowerCase().includes(q);
     const sm = !sf || p.status === sf;
     return m && sm;
-  });
+  }).sort((a, b) => (a.nome||'').localeCompare(b.nome||'', 'pt-BR', {sensitivity:'base'}));
 
   const grid = document.getElementById('grid');
   if (list.length === 0) {
