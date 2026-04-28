@@ -585,15 +585,16 @@ const PHOTOS_FOLDER_NAME = 'fotos';
 
 // ── STATE ──
 let puzzles       = JSON.parse(localStorage.getItem('puzzles_collection') || '[]');
-let photoData     = null; // base64 preview (temporário, só para exibição no form)
-let photoFile     = null; // File object para upload no Drive
+let photoData     = null;
+let photoFile     = null;
 let gapiReady     = false;
 let gisReady      = false;
 let tokenClient   = null;
-let driveFileId   = localStorage.getItem('gdrive_file_id')        || null;
+let driveFileId   = localStorage.getItem('gdrive_file_id')         || null;
 let photoFolderId = localStorage.getItem('gdrive_photo_folder_id') || null;
 let isSyncing     = false;
-let photoCache    = {}; // fileId → base64, cache em memória para mobile
+let photoCache    = {};
+let tokenRefreshTimer = null;
 
 // ── STATUS COLORS ──
 const statusColors = {
@@ -633,7 +634,10 @@ function loadGapiClient() {
   if (!API_KEY || !CLIENT_ID) return;
   gapi.load('client', async () => {
     try {
-      await gapi.client.init({ apiKey: API_KEY, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+      await gapi.client.init({
+        apiKey: API_KEY,
+        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+      });
       gapiReady = true;
       initTokenClient();
     } catch(e) { console.warn('GAPI init error', e); }
@@ -642,13 +646,14 @@ function loadGapiClient() {
 
 function initTokenClient() {
   if (!CLIENT_ID) return;
+
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPES,
     callback: async (resp) => {
       if (resp.error) {
-        // silent reconnect failed — don't show error, just stay disconnected
         if (resp.error === 'interaction_required' || resp.error === 'access_denied') {
+          // silent refresh needs user — show button quietly
           setDriveStatus('');
           return;
         }
@@ -656,37 +661,65 @@ function initTokenClient() {
         toast('❌ Erro ao autenticar no Google');
         return;
       }
+      // ── token received ──
       gisReady = true;
+      const expiresIn = (resp.expires_in || 3600) * 1000;
+      localStorage.setItem('gdrive_token', resp.access_token);
+      localStorage.setItem('gdrive_token_expiry', String(Date.now() + expiresIn));
+      scheduleTokenRefresh(expiresIn);
       closeModal('driveOverlay');
       await syncFromDrive();
       showDriveUser();
     }
   });
 
-  // try silent reconnect if user was previously connected
-  const savedEmail = localStorage.getItem('gdrive_user_email');
-  if (savedEmail) {
-    try {
-      tokenClient.requestAccessToken({ prompt: '', login_hint: savedEmail });
-    } catch(e) { console.warn('Silent reconnect failed', e); }
+  // ── restore persisted token ──
+  const savedToken  = localStorage.getItem('gdrive_token');
+  const tokenExpiry = parseInt(localStorage.getItem('gdrive_token_expiry') || '0');
+  const savedEmail  = localStorage.getItem('gdrive_user_email');
+
+  if (savedToken && tokenExpiry > Date.now() + 60000) {
+    // token still valid — restore immediately, no network call
+    gapi.client.setToken({ access_token: savedToken });
+    gisReady = true;
+    scheduleTokenRefresh(tokenExpiry - Date.now());
+    syncFromDrive();
+    showDriveUser();
+  } else if (savedEmail) {
+    // token expired — silent refresh (no popup on desktop, may require tap on mobile)
+    silentRefresh();
   }
+}
+
+function scheduleTokenRefresh(expiresInMs) {
+  if (tokenRefreshTimer) clearTimeout(tokenRefreshTimer);
+  // refresh 5 min before expiry, minimum 30 sec
+  const delay = Math.max(expiresInMs - 300000, 30000);
+  tokenRefreshTimer = setTimeout(silentRefresh, delay);
+}
+
+function silentRefresh() {
+  if (!tokenClient) return;
+  const savedEmail = localStorage.getItem('gdrive_user_email');
+  try {
+    tokenClient.requestAccessToken({ prompt: '', login_hint: savedEmail || undefined });
+  } catch(e) { console.warn('Silent refresh failed', e); }
 }
 
 function showDriveUser() {
   const token = gapi.client.getToken();
   if (!token) return;
   document.getElementById('driveSetupSteps').style.display = 'none';
-  document.getElementById('driveUserInfo').style.display = 'block';
-  document.getElementById('btnDriveLogout').style.display = 'inline-block';
+  document.getElementById('driveUserInfo').style.display   = 'block';
+  document.getElementById('btnDriveLogout').style.display  = 'inline-block';
   document.getElementById('btnDriveConnect').style.display = 'none';
   fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: 'Bearer ' + token.access_token }
   }).then(r => r.json()).then(u => {
     document.getElementById('driveUserName').textContent  = u.name  || '–';
     document.getElementById('driveUserEmail').textContent = u.email || '–';
-    // save email so we can reconnect silently next time
     if (u.email) localStorage.setItem('gdrive_user_email', u.email);
-  });
+  }).catch(() => {});
 }
 
 function initDrive() {
@@ -709,22 +742,25 @@ function driveLogout() {
   const token = gapi.client.getToken();
   if (token) google.accounts.oauth2.revoke(token.access_token, () => {});
   gapi.client.setToken(null);
-  gisReady = false;
-  driveFileId = null;
+  if (tokenRefreshTimer) clearTimeout(tokenRefreshTimer);
+  gisReady      = false;
+  driveFileId   = null;
   photoFolderId = null;
   localStorage.removeItem('gdrive_file_id');
   localStorage.removeItem('gdrive_photo_folder_id');
   localStorage.removeItem('gdrive_user_email');
+  localStorage.removeItem('gdrive_token');
+  localStorage.removeItem('gdrive_token_expiry');
   setDriveStatus('');
   document.getElementById('driveSetupSteps').style.display = 'block';
-  document.getElementById('driveUserInfo').style.display = 'none';
-  document.getElementById('btnDriveLogout').style.display = 'none';
+  document.getElementById('driveUserInfo').style.display   = 'none';
+  document.getElementById('btnDriveLogout').style.display  = 'none';
   document.getElementById('btnDriveConnect').style.display = 'inline-block';
   toast('Desconectado do Google Drive');
   closeModal('driveOverlay');
 }
 
-// ── DRIVE SYNC ──
+
 async function findOrCreateFile() {
   if (driveFileId) {
     try {
@@ -822,6 +858,7 @@ async function uploadPhotoToDrive(file, puzzleId) {
   };
 }
 
+// ── DRIVE SYNC ──
 async function syncFromDrive() {
   if (!gapiReady || !gisReady) return;
   setDriveStatus('syncing');
@@ -831,13 +868,13 @@ async function syncFromDrive() {
     const remote = JSON.parse(res.body || '[]');
 
     if (remote.length > 0) {
-      // Drive é a fonte da verdade — substitui local completamente
       puzzles = remote;
     } else {
-      // Drive vazio mas temos dados locais — envia o local para o Drive
       await saveToDrive();
     }
 
+    // clear photo cache so photos are re-fetched with valid token
+    photoCache = {};
     localStorage.setItem('puzzles_collection', JSON.stringify(puzzles));
     setDriveStatus('synced');
     updateStats();
